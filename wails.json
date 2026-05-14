@@ -1,7 +1,7 @@
 {
   "$schema": "https://wails.io/schemas/config.v2.json",
-  "name": "markitdown-gui",
-  "outputfilename": "markitdown-gui",
+  "name": "MD转换神器",
+  "outputfilename": "MD转换神器",
   "frontend:install": "",
   "frontend:build": "",
   "frontend:dev:watcher": "",

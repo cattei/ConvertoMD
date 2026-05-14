@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MarkItDown 文档转换工具</title>
+<title>MD转换神器</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -23,6 +23,7 @@
     width: 100%;
     max-width: 700px;
     padding: 36px;
+    position: relative;
   }
   h1 {
     font-size: 24px;
@@ -32,6 +33,89 @@
     display: flex;
     align-items: center;
     gap: 12px;
+  }
+  h1 img {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+  }
+  .bottom-right {
+    position: absolute;
+    bottom: 12px;
+    right: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .donate-btn {
+    background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+    color: #fff;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .donate-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(238, 90, 36, 0.4);
+  }
+  .donate-tooltip {
+    position: absolute;
+    bottom: 60px;
+    right: 0;
+    background: #fff;
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    display: none;
+    z-index: 100;
+    min-width: 320px;
+  }
+  .donate-tooltip.show {
+    display: block;
+  }
+  .donate-tooltip-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .donate-qrcodes {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+  }
+  .donate-qrcode {
+    text-align: center;
+  }
+  .donate-qrcode img {
+    width: 140px;
+    height: 140px;
+    border: 2px solid #f0f0f0;
+    border-radius: 8px;
+  }
+  .donate-qrcode-label {
+    font-size: 12px;
+    color: #666;
+    margin-top: 6px;
+  }
+  .github-link {
+    color: #667eea;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    transition: color 0.2s;
+  }
+  .github-link:hover {
+    color: #764ba2;
+    text-decoration: underline;
   }
   .section { margin-bottom: 20px; }
   .section-label {
@@ -218,7 +302,7 @@
 </head>
 <body>
 <div class="container">
-  <h1>📄 MarkItDown 文档转换工具</h1>
+  <h1><img src="img/logo.jpg" alt="logo"> MD转换神器</h1>
 
   <div class="section">
     <div class="section-label">📂 源目录（包含待转换文档的目录）</div>
@@ -281,8 +365,51 @@
 
   <button class="btn btn-convert" id="convertBtn" onclick="startConvert()">🚀 开始转换</button>
 
-  <div class="footer">MarkItDown · 图片自动提取 + DeepSeek-OCR 文字识别</div>
+  <div class="footer">MD转换神器 · 图片自动提取 + DeepSeek-OCR 文字识别</div>
+  
+  <div class="bottom-right">
+    <a href="https://github.com/cattei/ConvertoMD" target="_blank" class="github-link">代码开源</a>
+    <div style="position: relative;">
+      <button class="donate-btn" id="donateBtn">
+        💰 打赏
+      </button>
+      <div class="donate-tooltip" id="donateTooltip">
+        <div class="donate-tooltip-title">大爷，有钱的捧个钱场，没钱的捧个Star</div>
+        <div class="donate-qrcodes">
+          <div class="donate-qrcode">
+            <img src="img/wechat.jpg" alt="微信收款码">
+            <div class="donate-qrcode-label">微信支付</div>
+          </div>
+          <div class="donate-qrcode">
+            <img src="img/alipay.jpg" alt="支付宝收款码">
+            <div class="donate-qrcode-label">支付宝</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
+
+<script>
+  const donateBtn = document.getElementById('donateBtn');
+  const donateTooltip = document.getElementById('donateTooltip');
+  
+  donateBtn.addEventListener('mouseenter', () => {
+    donateTooltip.classList.add('show');
+  });
+  
+  donateBtn.addEventListener('mouseleave', () => {
+    donateTooltip.classList.remove('show');
+  });
+  
+  donateTooltip.addEventListener('mouseenter', () => {
+    donateTooltip.classList.add('show');
+  });
+  
+  donateTooltip.addEventListener('mouseleave', () => {
+    donateTooltip.classList.remove('show');
+  });
+</script>
 
 <script>
   const { SelectDirectory, StartConvert } = window.go.main.App;

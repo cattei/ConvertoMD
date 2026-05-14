@@ -44,7 +44,14 @@ build/
 
 # Large binary files (don't track compiled executables)
 *.exe
+*.spec
 
 # MarkItDown specific
 temp/
 output/
+convert_icon.py
+
+# Build and dist
+build/
+dist/
+__pycache__/

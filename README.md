@@ -1,6 +1,6 @@
 # MarkItDown 文档转换工具
 
-一款基于 **Wails + Go + Python** 开发的桌面应用程序，可将各种文档格式批量转换为 Markdown 格式，支持图片提取与 OCR 文字识别。
+项目基于微软的markitdown(url:https://github.com/microsoft/markitdown) ，为了方便使用，我在此基础上用 **Wails + Go + Python** 开发成桌面应用程序，可将各种文档格式批量转换为 Markdown 格式，支持图片提取与 OCR 文字识别。
 
 ## ✨ 核心特性
 
@@ -132,7 +132,7 @@ wails build
 
 本应用内置了 SiliconFlow API Key，用于 DeepSeek-OCR 功能：
 
-- API Key 硬编码在 [main.go](file:///c:/Users/cattei/Documents/ZMT%E4%BC%97%E7%9B%9F/software/main.go#L23)
+- API Key 硬编码在 [main.go]
 - 仅用于图片 OCR 识别
 - API 调用受 SiliconFlow 账户限制
 
@@ -171,10 +171,19 @@ A: 等待一段时间，大文件转换需要较长时间
 
 转换过程中的详细日志会显示在界面的日志区域，方便排查问题。
 
+## 💰 打赏支持
+
+大爷，有钱的捧个钱场，没钱的捧个Star，您赏一个。
+
+<div align="center">
+  <img src="img/微信收款码.jpg" alt="微信收款码" width="200" />
+  <img src="img/支付宝收款码.jpg" alt="支付宝收款码" width="200" />
+</div>
+
 ## 📝 许可证
 
 本项目仅供内部使用。
 
 ## 🤝 联系方式
 
-如有问题或建议，请联系开发者。
+如有问题或建议，请联系开发者，邮箱：12777894@qq.com；微信号：cattei。
