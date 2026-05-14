@@ -68,14 +68,15 @@
   .donate-tooltip {
     position: absolute;
     bottom: 60px;
-    right: 0;
+    left: 50%;
+    transform: translateX(-50%);
     background: #fff;
     border-radius: 12px;
-    padding: 16px;
+    padding: 20px;
     box-shadow: 0 8px 24px rgba(0,0,0,0.15);
     display: none;
     z-index: 100;
-    min-width: 320px;
+    min-width: 280px;
   }
   .donate-tooltip.show {
     display: block;
@@ -87,24 +88,21 @@
     margin-bottom: 12px;
     text-align: center;
   }
-  .donate-qrcodes {
-    display: flex;
-    gap: 12px;
-    justify-content: center;
-  }
   .donate-qrcode {
     text-align: center;
   }
   .donate-qrcode img {
-    width: 140px;
-    height: 140px;
+    width: 200px;
+    height: 200px;
     border: 2px solid #f0f0f0;
     border-radius: 8px;
+    object-fit: cover;
   }
   .donate-qrcode-label {
-    font-size: 12px;
+    font-size: 13px;
     color: #666;
-    margin-top: 6px;
+    margin-top: 8px;
+    font-weight: 500;
   }
   .github-link {
     color: #667eea;
@@ -374,16 +372,10 @@
         💰 打赏
       </button>
       <div class="donate-tooltip" id="donateTooltip">
-        <div class="donate-tooltip-title">大爷，有钱的捧个钱场，没钱的捧个Star</div>
-        <div class="donate-qrcodes">
-          <div class="donate-qrcode">
-            <img src="img/wechat.jpg" alt="微信收款码">
-            <div class="donate-qrcode-label">微信支付</div>
-          </div>
-          <div class="donate-qrcode">
-            <img src="img/alipay.jpg" alt="支付宝收款码">
-            <div class="donate-qrcode-label">支付宝</div>
-          </div>
+        <div class="donate-tooltip-title">如果这个工具对你有帮助，欢迎打赏支持！</div>
+        <div class="donate-qrcode">
+          <img src="img/wechat.jpg" alt="微信收款码">
+          <div class="donate-qrcode-label">微信支付</div>
         </div>
       </div>
     </div>

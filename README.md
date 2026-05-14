@@ -1,6 +1,6 @@
-# MarkItDown 文档转换工具
+# MD转换神器
 
-项目基于微软的markitdown(url:https://github.com/microsoft/markitdown) ，为了方便使用，我在此基础上用 **Wails + Go + Python** 开发成桌面应用程序，可将各种文档格式批量转换为 Markdown 格式，支持图片提取与 OCR 文字识别。
+基于微软的 [markitdown](https://github.com/microsoft/markitdown)，使用 **Wails + Go + Python** 开发的桌面应用程序，可将各种文档格式批量转换为 Markdown 格式，支持图片提取与 DeepSeek-OCR 文字识别。
 
 ## ✨ 核心特性
 
@@ -15,10 +15,10 @@
 
 ### 使用方法
 
-1. 双击运行 `markitdown-gui.exe`
-2. 点击"选择目录"按钮，选择要转换的源文档目录
+1. 双击运行 `MD转换神器.exe`
+2. 点击「选择目录」按钮，选择要转换的源文档目录
 3. 选择或创建目标目录（Markdown 输出目录）
-4. 点击"开始转换"按钮
+4. 点击「开始转换」按钮
 5. 等待转换完成，查看统计信息
 
 ### 界面说明
@@ -39,7 +39,7 @@
 
 ```
 ┌─────────────────────────────────────┐
-│      markitdown-gui.exe (Go/Wails)   │
+│      MD转换神器.exe (Go/Wails)      │
 │  ┌─────────────────────────────────┐ │
 │  │   GUI 界面 (HTML/CSS/JS)        │ │
 │  └─────────────────────────────────┘ │
@@ -51,7 +51,7 @@
 │  └─────────────────────────────────┘ │
 │  ┌─────────────────────────────────┐ │
 │  │   bridge.exe (PyInstaller)      │ │
-│  │   - Python 3.13 完整环境         │ │
+│  │   - Python 完整环境              │ │
 │  │   - markitdown 库               │ │
 │  │   - DeepSeek-OCR                │ │
 │  └─────────────────────────────────┘ │
@@ -64,7 +64,7 @@
 |------|------|------|
 | 桌面框架 | Wails v2.12.0 | Go + WebView2 |
 | GUI | HTML/CSS/JavaScript | 原生前端 |
-| 文档转换 | Python 3.13 + markitdown | 核心转换逻辑 |
+| 文档转换 | Python + markitdown | 核心转换逻辑 |
 | OCR | DeepSeek-OCR (SiliconFlow API) | 图片文字识别 |
 | 打包 | PyInstaller + Wails | 双层独立打包 |
 
@@ -72,16 +72,28 @@
 
 ```
 software/
-├── main.go                    # Go 主程序，Wails 应用入口
-├── app.go                     # Go 应用逻辑
-├── bridge.py                  # Python 桥接脚本（核心转换逻辑）
-├── markitdown_bridge.exe      # PyInstaller 打包的 Python 独立程序
-├── frontend/
-│   └── index.html            # 前端界面
-├── wails.json                # Wails 配置文件
-├── go.mod                    # Go 模块依赖
-└── build/bin/
-    └── markitdown-gui.exe    # 最终打包的可执行文件
+├── main.go                 # Go 主程序，Wails 应用入口
+├── app.go                  # Go 应用逻辑
+├── wails.json              # Wails 配置文件
+├── go.mod / go.sum         # Go 模块依赖
+├── .gitignore              # Git 忽略配置
+│
+├── frontend/               # 前端界面
+│   ├── index.html         # 主界面
+│   ├── img/               # 界面图片资源
+│   └── wailsjs/           # Wails 自动生成的绑定
+│
+├── scripts/                # Python 脚本
+│   └── bridge.py          # 核心转换逻辑
+│
+├── docs/                   # 文档资源
+│   ├── logo.jpg
+│   ├── wechat.jpg
+│   └── alipay.jpg
+│
+└── build/                  # 编译输出（自动生成）
+    └── bin/
+        └── MD转换神器.exe  # 最终可执行文件
 ```
 
 ## 🔧 开发说明
@@ -89,7 +101,7 @@ software/
 ### 环境要求
 
 - Go 1.21+
-- Python 3.13+ (开发时)
+- Python 3.11+ (开发时)
 - Wails CLI
 - PyInstaller
 
@@ -104,7 +116,10 @@ go mod tidy
 wails dev
 
 # 3. 修改 Python 脚本后重新打包
+cd scripts
 pyinstaller --onefile --name "markitdown_bridge" bridge.py
+cd ..
+copy scripts\dist\markitdown_bridge.exe .
 
 # 4. 重新编译应用
 wails build
@@ -112,14 +127,15 @@ wails build
 
 ### 重新打包步骤
 
-1. 修改 `bridge.py` 代码
+1. 修改 `scripts/bridge.py` 代码
 2. 打包 Python 脚本：
    ```bash
+   cd scripts
    pyinstaller --onefile --name "markitdown_bridge" bridge.py
    ```
-3. 复制打包结果：
+3. 复制打包结果到根目录：
    ```bash
-   cp dist/markitdown_bridge.exe .
+   copy dist\markitdown_bridge.exe ..\
    ```
 4. 编译 Go 应用：
    ```bash
@@ -132,14 +148,14 @@ wails build
 
 本应用内置了 SiliconFlow API Key，用于 DeepSeek-OCR 功能：
 
-- API Key 硬编码在 [main.go]
+- API Key 硬编码在 [main.go](main.go)
 - 仅用于图片 OCR 识别
 - API 调用受 SiliconFlow 账户限制
 
 **注意事项**：
 - 仅供个人/内部使用
 - 如需商业部署，请联系开发者获取正式授权
-- API Key 已嵌入打包后的 exe 中，无法提取
+- API Key 已嵌入打包后的 exe 中
 
 ### 文件安全
 
@@ -173,11 +189,10 @@ A: 等待一段时间，大文件转换需要较长时间
 
 ## 💰 打赏支持
 
-大爷，有钱的捧个钱场，没钱的捧个Star，您赏一个。
+如果这个工具对你有帮助，欢迎打赏支持！
 
 <div align="center">
-  <img src="img/微信收款码.jpg" alt="微信收款码" width="200" />
-  <img src="img/支付宝收款码.jpg" alt="支付宝收款码" width="200" />
+  <img src="docs/微信收款码.jpg" alt="微信收款码" width="250" />
 </div>
 
 ## 📝 许可证
