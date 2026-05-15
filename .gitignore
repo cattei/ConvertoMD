@@ -4,54 +4,25 @@ __pycache__/
 *$py.class
 *.so
 .Python
-build/
-dist/
+env/
+venv/
+ENV/
 *.egg-info/
-.eggs/
-*.egg
 
-# PyInstaller
-*.spec
-
-# Go
-bin/
-vendor/
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-*.test
-*.out
-go-work*
-
-# Wails
+# Build outputs
+dist/
 build/
+*.spec
 
 # IDE
-.vscode/
 .idea/
+.vscode/
 *.swp
 *.swo
-*~
-.DS_Store
 
-# Temporary files
-*.tmp
-*.log
-*.bak
-*.cache
+# Windows
+Thumbs.db
+Desktop.ini
 
-# Large binary files (don't track compiled executables)
-*.exe
-*.spec
-
-# MarkItDown specific
-temp/
-output/
-convert_icon.py
-
-# Build and dist
-build/
-dist/
-__pycache__/
+# Test files (放在 test 目录下，不需要提交)
+test/
