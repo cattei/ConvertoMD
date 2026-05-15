@@ -142,14 +142,20 @@ SILICONFLOW_BASE_URL=https://api.siliconflow.cn/v1
 
 - API Key 配置在 [config.py](config.py)
 - 支持通过环境变量 `.env` 文件覆盖配置
-- 仅用于图片 OCR 识别
+- 为了方便使用，API Key 已预置在代码中，仅供个人/内部使用
+- 仅用于图片 OCR 识别，文档内的图片也能转换
 - API 调用受 SiliconFlow 账户限制
 
 **注意事项：**
 - 建议使用环境变量配置 API Key
 - `.env` 文件已添加到 `.gitignore`，不会被提交到 Git
-- 仅供个人/内部使用
 - 如需商业部署，请联系开发者获取正式授权
+
+### 文件安全
+
+- 转换过程在本地执行，不上传文件到服务器
+- 仅图片数据会发送到 SiliconFlow API 进行 OCR 识别
+- 临时文件在转换完成后自动清理
 
 ## ⚠️ 限制与注意事项
 
@@ -188,7 +194,7 @@ SILICONFLOW_BASE_URL=https://api.siliconflow.cn/v1
 
 ## 📝 许可证
 
-本项目仅供内部使用。
+本项目您想怎么用怎么用。
 
 ## 🤝 联系方式
 
