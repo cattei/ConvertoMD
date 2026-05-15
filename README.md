@@ -10,6 +10,7 @@
 - 📁 **目录保持**：转换后自动保持原有目录结构
 - ⚡ **批量转换**：支持批量处理大量文件
 - 🎨 **独立运行**：单个 exe 文件，复制到任何 Windows 电脑即可使用
+- 🔒 **安全配置**：支持环境变量配置 API Key
 
 ## 🚀 快速开始
 
@@ -67,18 +68,27 @@
 ```
 software/
 ├── app_flet.py          # 主程序（Flet 应用）
-├── MD转换神器.exe       # 最终可执行文件
+├── config.py            # 配置管理模块
+├── .env.example         # 环境变量模板
+├── .gitignore           # Git 忽略文件配置
+├── build.bat            # PyInstaller 打包脚本
+├── convert_icon.py      # 图标转换工具
 ├── img/                 # 界面图片资源
+│   ├── logo.ico
 │   ├── logo.jpg
 │   └── wechat.jpg
 ├── docs/                # 文档资源
 │   ├── logo.jpg
 │   └── 微信收款码.jpg
-├── test/                # 测试文件
-│   ├── test_conversion.py
-│   └── convert_icon.py
-├── .gitignore
-└── README.md
+├── test/                # 测试文件目录
+│   ├── test_units.py    # 单元测试用例
+│   ├── code_review.py   # 代码审查测试
+│   ├── verify_fixes.py  # 修复验证脚本
+│   └── ...              # 其他测试文件
+├── .trae/               # Trae 项目文档
+│   └── documents/
+│       └── md_converter_improvement_plan.md
+└── README.md            # 项目说明文档
 ```
 
 ## 🔧 开发说明
@@ -88,35 +98,58 @@ software/
 - Python 3.11+
 - Flet
 - markitdown
-- PyInstaller
+- openai
+- PyInstaller (用于打包)
 
 ### 开发调试
 
 ```bash
 # 1. 安装依赖
-pip install flet markitdown openai
+pip install flet markitdown openai python-dotenv
 
-# 2. 运行开发模式
+# 2. 配置环境变量（可选）
+# 复制 .env.example 为 .env 并填入你的 API Key
+
+# 3. 运行开发模式
 python app_flet.py
 
-# 3. 打包应用
-pyinstaller --onefile --name "MD转换神器" --hidden-import markitdown --hidden-import openai app_flet.py
+# 4. 运行测试
+cd test
+python verify_fixes.py
+python test_units.py
+
+# 5. 打包应用（使用 build.bat）
+build.bat
 ```
+
+### API Key 配置
+
+方式1：使用环境变量（推荐）
+```bash
+# 在 .env 文件中配置
+SILICONFLOW_API_KEY=your_api_key_here
+SILICONFLOW_MODEL=deepseek-ai/DeepSeek-OCR
+SILICONFLOW_BASE_URL=https://api.siliconflow.cn/v1
+```
+
+方式2：直接修改 config.py（不推荐用于生产环境）
 
 ## 🔒 安全说明
 
 ### API Key 管理
 
-本应用内置了 SiliconFlow API Key，用于 DeepSeek-OCR 功能：
+本应用使用 SiliconFlow API Key 用于 DeepSeek-OCR 功能：
 
-- API Key 硬编码在 [app_flet.py](app_flet.py#L16)
+- API Key 配置在 [config.py](config.py)
+- 支持通过环境变量 `.env` 文件覆盖配置
 - 仅用于图片 OCR 识别
 - API 调用受 SiliconFlow 账户限制
 
-**注意事项**：
+**注意事项：**
+- 建议使用环境变量配置 API Key
+- `.env` 文件已添加到 `.gitignore`，不会被提交到 Git
 - 仅供个人/内部使用
 - 如需商业部署，请联系开发者获取正式授权
-- API Key 已嵌入打包后的 exe 中
 
 ## ⚠️ 限制与注意事项
 
@@ -124,6 +157,26 @@ pyinstaller --onefile --name "MD转换神器" --hidden-import markitdown --hidde
 2. **文件大小**：大文件转换可能需要较长时间
 3. **图片格式**：EMF/WMF 格式图片不支持 OCR 识别
 4. **Python 环境**：打包后的 exe 不需要安装 Python
+5. **线程安全**：UI 更新已使用 `page.run_task()` 保证线程安全
+
+## 📝 更新日志
+
+### v2.0 (2026-05-15)
+- 🔒 新增 config.py 统一配置管理
+- 🔒 支持环境变量配置 API Key
+- 🐛 修复线程安全问题，使用 page.run_task()
+- 🐛 改进异常处理，使用具体异常类型
+- ✨ 新增目录验证功能
+- ✨ 新增路径自动缩短显示
+- 📦 代码重构，提取公共函数
+- 🧪 完善单元测试用例
+- 📁 整理项目结构，test 目录规范化
+
+### v1.0
+- 初始版本发布
+- 基础文档转换功能
+- DOCX 图片提取
+- DeepSeek-OCR 集成
 
 ## 💰 打赏支持
 
@@ -139,4 +192,6 @@ pyinstaller --onefile --name "MD转换神器" --hidden-import markitdown --hidde
 
 ## 🤝 联系方式
 
-如有问题或建议，请联系开发者，邮箱：12777894@qq.com；微信号：cattei。
+如有问题或建议，请联系开发者：
+- 邮箱：12777894@qq.com
+- 微信号：cattei

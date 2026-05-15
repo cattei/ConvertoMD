@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-MD转换神器 - 基于 Flet 的文档转换工具
+MD转换神器 - 修复版本
 """
 
 import flet as ft
@@ -10,123 +10,289 @@ import re
 import hashlib
 import zipfile
 import shutil
+import tkinter as tk
+from tkinter import filedialog
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
-API_KEY = "sk-duohvgsidlebysltfcbozhhdfmririmmxalakbzdqwikxaqhq"
-MODEL = "deepseek-ai/DeepSeek-OCR"
-BASE_URL = "https://api.siliconflow.cn/v1"
+from config import Config
 
-SUPPORTED_EXTENSIONS = {
-    ".docx", ".doc", ".xlsx", ".xls", ".pptx", ".ppt",
-    ".pdf", ".html", ".htm", ".txt", ".csv", ".tsv",
-    ".xml", ".json", ".md", ".rst", ".rtf",
-    ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".webp",
-}
+
+def pick_folder() -> Optional[str]:
+    """打开文件夹选择对话框"""
+    root = tk.Tk()
+    root.withdraw()
+    folder = filedialog.askdirectory()
+    root.destroy()
+    return folder if folder else None
+
+
+def _shorten_path(path: str, max_length: int = Config.PATH_DISPLAY_LIMIT) -> str:
+    """缩短路径显示，超出部分用省略号代替"""
+    if len(path) <= max_length:
+        return path
+    half = (max_length - 3) // 2
+    return f"{path[:half]}...{path[-half:]}"
+
+
+def _validate_directory(path: str) -> Tuple[bool, str]:
+    """验证目录是否存在且有读写权限"""
+    dir_path = Path(path)
+    if not dir_path.exists():
+        return False, "目录不存在"
+    if not dir_path.is_dir():
+        return False, "路径不是目录"
+    try:
+        test_file = dir_path / ".test_write_permission"
+        test_file.touch()
+        test_file.unlink()
+    except Exception:
+        return False, "目录没有读写权限"
+    return True, ""
 
 
 class MDConverterApp:
-    def __init__(self, page: ft.Page):
+    """MD转换神器主应用类"""
+
+    def __init__(self, page: ft.Page) -> None:
         self.page = page
         self.page.title = "MD转换神器"
-        self.page.window_width = 780
-        self.page.window_height = 780
+        self.page.window_width = Config.WINDOW_WIDTH
+        self.page.window_height = Config.WINDOW_HEIGHT
         self.page.theme_mode = ft.ThemeMode.LIGHT
-        
-        self.source_dir = ""
-        self.target_dir = ""
-        self.is_converting = False
-        self.failures = []
-        self.stats = {"dirs": "0", "total": "0", "done": "0", "pending": "0"}
-        
+
+        self.source_dir: str = ""
+        self.target_dir: str = ""
+        self.is_converting: bool = False
+        self.failures: List[Tuple[str, str]] = []
+        self.stats: Dict[str, str] = {
+            "dirs": "0",
+            "total": "0",
+            "done": "0",
+            "pending": "0"
+        }
+        self.all_files: List[Path] = []
+
         self._build_ui()
-    
-    def _build_ui(self):
-        self.page.add(ft.Text("MD转换神器", size=28, weight=ft.FontWeight.BOLD))
-        self.page.add(ft.Divider())
-        
-        self.page.add(ft.Text("📂 源目录（包含待转换文档的目录）", size=14, weight=ft.FontWeight.W_500))
-        
-        self.source_input = ft.TextField(hint_text="请选择要转换的文档目录...", expand=True, read_only=True)
-        row1 = ft.Row([self.source_input, ft.ElevatedButton("选择目录", on_click=self._select_source)])
-        self.page.add(row1)
-        
-        self.page.add(ft.Text("📁 目标目录（Markdown 输出目录）", size=14, weight=ft.FontWeight.W_500))
-        
-        self.target_input = ft.TextField(hint_text="请选择 Markdown 输出目录...", expand=True, read_only=True)
-        row2 = ft.Row([self.target_input, ft.ElevatedButton("选择目录", on_click=self._select_target)])
-        self.page.add(row2)
-        
-        self.page.add(ft.Divider())
-        
-        self.stat_dirs = ft.Text("📂 目录数: 0", size=14)
-        self.stat_total = ft.Text("📄 总文件数: 0", size=14)
-        self.stat_done = ft.Text("✅ 已转换: 0", size=14)
-        self.stat_pending = ft.Text("⏳ 待转换: 0", size=14)
-        
-        self.page.add(ft.Row([self.stat_dirs, self.stat_total, self.stat_done, self.stat_pending]))
-        
-        self.page.add(ft.Container(content=ft.Text("DeepSeek-OCR 已内置 | 图片 OCR 已启用", size=12), bgcolor="#e0e7ff", padding=8))
-        
-        self.progress_status = ft.Text("就绪", size=13)
-        self.progress_bar = ft.ProgressBar(width=700)
+
+    def _build_ui(self) -> None:
+        """构建用户界面"""
+        self.page.add(
+            ft.Text("MD转换神器", size=28, weight=ft.FontWeight.BOLD, color="#667eea")
+        )
+
+        # 源目录输入框和按钮
+        self.source_input = ft.TextField(
+            hint_text="选择源目录...", expand=True, read_only=True, height=45
+        )
+        source_row = ft.Row([
+            ft.Container(content=self.source_input, expand=True),
+            ft.Button("📂 源目录", on_click=self._select_source, width=120, height=45)
+        ])
+        self.page.add(source_row)
+
+        # 目标目录输入框和按钮
+        self.target_input = ft.TextField(
+            hint_text="选择目标目录...", expand=True, read_only=True, height=45
+        )
+        target_row = ft.Row([
+            ft.Container(content=self.target_input, expand=True),
+            ft.Button("📁 目标目录", on_click=self._select_target, width=120, height=45)
+        ])
+        self.page.add(target_row)
+
+        # 统计信息
+        self.stat_dirs = ft.Text("📂 目录: 0", size=16, weight=ft.FontWeight.BOLD)
+        self.stat_total = ft.Text("📄 文件: 0", size=16, weight=ft.FontWeight.BOLD)
+        self.stat_done = ft.Text(
+            "✅ 已转换: 0", size=16, weight=ft.FontWeight.BOLD, color="#22c55e"
+        )
+        self.stat_pending = ft.Text(
+            "⏳ 待转换: 0", size=16, weight=ft.FontWeight.BOLD, color="#f59e0b"
+        )
+
+        self.page.add(ft.Container(
+            content=ft.Row(
+                [self.stat_dirs, self.stat_total, self.stat_done, self.stat_pending],
+                alignment=ft.MainAxisAlignment.SPACE_AROUND
+            ),
+            bgcolor="#f3f4f6",
+            padding=12,
+            border_radius=10,
+            margin=ft.Margin(0, 10, 0, 10)
+        ))
+
+        self.page.add(
+            ft.Container(
+                content=ft.Text(
+                    "DeepSeek-OCR已内置 | 图片OCR已启用", size=12, color="#666"
+                ),
+                padding=5
+            )
+        )
+
+        self.progress_status = ft.Text("就绪", size=14, color="#333")
+        self.progress_bar = ft.ProgressBar(
+            width=760, value=0, height=Config.PROGRESS_BAR_HEIGHT
+        )
         self.page.add(self.progress_status)
         self.page.add(self.progress_bar)
-        
-        self.page.add(ft.Divider())
-        
-        self.log_list = ft.ListView(height=180)
-        self.page.add(ft.Container(content=self.log_list, padding=10))
-        self._add_log("欢迎使用 MarkItDown 文档转换工具")
-        
-        self.failures_list = ft.ListView(height=120)
-        self.failures_section = ft.Column([ft.Text("❌ 转换失败列表", size=13, weight=ft.FontWeight.W_600, color="red"), self.failures_list])
+
+        self.log_list = ft.ListView(height=320, spacing=3, reverse=True)
+        self.page.add(
+            ft.Container(
+                content=self.log_list,
+                padding=8,
+                border_radius=8,
+                border=ft.Border(left=ft.BorderSide(3, "#667eea"))
+            )
+        )
+        self._add_log("欢迎使用MD转换神器", "gray")
+
+        self.failures_list = ft.ListView(height=80, spacing=2)
+        self.failures_section = ft.Column(
+            [ft.Text("❌ 转换失败", size=14, weight=ft.FontWeight.BOLD, color="red"),
+             self.failures_list]
+        )
         self.failures_section.visible = False
         self.page.add(self.failures_section)
-        
-        self.convert_btn = ft.ElevatedButton("🚀 开始转换", on_click=self._start_convert, width=700)
+
+        self.convert_btn = ft.Button(
+            "🚀 开始转换", on_click=self._start_convert, width=760, height=50
+        )
         self.page.add(self.convert_btn)
-        
-        self.page.add(ft.Divider())
-        self.page.add(ft.Text("MD转换神器 · 图片自动提取 + DeepSeek-OCR 文字识别", size=12, color="gray"))
-        self.page.add(ft.Row([
-            ft.TextButton("代码开源", on_click=lambda _: self.page.launch_url("https://github.com/cattei/ConvertoMD")),
-            ft.TextButton("打赏", on_click=self._show_donate),
-        ]))
-    
-    def _add_log(self, text: str, color: str = "black"):
-        self.log_list.controls.append(ft.Text(text, size=12, color=color))
+
+        self.page.add(
+            ft.Container(
+                content=ft.Text(
+                    "MD转换神器 · 图片自动提取 + DeepSeek-OCR",
+                    size=12,
+                    color="gray"
+                ),
+                padding=8
+            )
+        )
+
+        self.current_dialog: Optional[ft.AlertDialog] = None
+
+    def _add_log(self, text: str, color: str = "black") -> None:
+        """添加日志（线程安全）"""
+        def _update() -> None:
+            self.log_list.controls.insert(0, ft.Text(text, size=13, color=color))
+            if len(self.log_list.controls) > Config.MAX_LOGS:
+                self.log_list.controls.pop()
+            self.page.update()
+        self.page.run_task(_update)
+
+    def _update_all_stats(self) -> None:
+        """更新所有统计信息（线程安全）"""
+        def _update() -> None:
+            self.stat_dirs.value = f"📂 目录: {self.stats['dirs']}"
+            self.stat_total.value = f"📄 文件: {self.stats['total']}"
+            self.stat_done.value = f"✅ 已转换: {self.stats['done']}"
+            self.stat_pending.value = f"⏳ 待转换: {self.stats['pending']}"
+            self.page.update()
+        self.page.run_task(_update)
+
+    def _update_progress(self, value: float, status_text: str) -> None:
+        """更新进度条和状态（线程安全）"""
+        def _update() -> None:
+            self.progress_bar.value = value
+            self.progress_status.value = status_text
+            self.page.update()
+        self.page.run_task(_update)
+
+    def _select_source(self, e) -> None:
+        """选择源目录"""
+        folder = pick_folder()
+        if not folder:
+            return
+
+        # 验证目录
+        is_valid, error_msg = _validate_directory(folder)
+        if not is_valid:
+            self._show_error(f"源目录无效: {error_msg}")
+            return
+
+        self.source_dir = folder
+        self.source_input.value = _shorten_path(folder)
+
+        if not self.target_dir:
+            self.target_dir = f"{folder}_md"
+            self.target_input.value = _shorten_path(self.target_dir)
+
+        self._update_stats()
         self.page.update()
-    
-    async def _select_source(self, e):
-        result = await self.page.pick_folder_dialog_async()
-        if result:
-            self.source_dir = result.path
-            self.source_input.value = result.path
-            if not self.target_dir:
-                self.target_dir = result.path + "_md"
-                self.target_input.value = self.target_dir
-            self.page.update()
-    
-    async def _select_target(self, e):
-        result = await self.page.pick_folder_dialog_async()
-        if result:
-            self.target_dir = result.path
-            self.target_input.value = result.path
-            self.page.update()
-    
-    def _show_donate(self, e):
-        self.page.show_dialog(ft.AlertDialog(
+
+    def _select_target(self, e) -> None:
+        """选择目标目录"""
+        folder = pick_folder()
+        if not folder:
+            return
+
+        # 验证目录
+        is_valid, error_msg = _validate_directory(folder)
+        if not is_valid:
+            self._show_error(f"目标目录无效: {error_msg}")
+            return
+
+        self.target_dir = folder
+        self.target_input.value = _shorten_path(folder)
+        self.page.update()
+
+    def _update_stats(self) -> None:
+        """更新文件统计"""
+        if not self.source_dir:
+            return
+
+        files, dir_count = self._find_files(Path(self.source_dir))
+        self.all_files = files
+
+        self.stats["dirs"] = str(dir_count)
+        self.stats["total"] = str(len(files))
+        self.stats["done"] = "0"
+        self.stats["pending"] = str(len(files))
+        self._update_all_stats()
+
+        if len(files) > 0:
+            self._add_log(f"已扫描到 {len(files)} 个文件", "gray")
+
+    def _show_error(self, msg: str) -> None:
+        """显示错误对话框"""
+        def close_dialog(e) -> None:
+            if self.page.dialog:
+                self.page.dialog.open = False
+                self.page.update()
+
+        self.current_dialog = ft.AlertDialog(
             modal=True,
-            title=ft.Text("如果这个工具对你有帮助，欢迎打赏支持！"),
-            content=ft.Column([
-                ft.Image(src="wechat.jpg", width=250, height=250),
-                ft.Text("微信支付", size=13),
-            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-            actions=[ft.TextButton("关闭", on_click=lambda _: self.page.close_dialog())],
-        ))
-    
-    def _start_convert(self, e):
+            title=ft.Text("提示", size=18),
+            content=ft.Text(msg, size=14),
+            actions=[ft.Button("确定", on_click=close_dialog)],
+        )
+        self.page.dialog = self.current_dialog
+        self.current_dialog.open = True
+        self.page.update()
+
+    def _show_complete(self, msg: str) -> None:
+        """显示完成对话框"""
+        def close_dialog(e) -> None:
+            if self.page.dialog:
+                self.page.dialog.open = False
+                self.page.update()
+
+        self.current_dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("转换完成", size=18),
+            content=ft.Text(msg, size=14),
+            actions=[ft.Button("确定", on_click=close_dialog)],
+        )
+        self.page.dialog = self.current_dialog
+        self.current_dialog.open = True
+        self.page.update()
+
+    def _start_convert(self, e) -> None:
+        """开始转换"""
         if self.is_converting:
             return
         if not self.source_dir:
@@ -135,7 +301,7 @@ class MDConverterApp:
         if not self.target_dir:
             self._show_error("请选择目标目录")
             return
-        
+
         self.is_converting = True
         self.convert_btn.text = "⏳ 转换中..."
         self.convert_btn.disabled = True
@@ -143,168 +309,162 @@ class MDConverterApp:
         self.failures_section.visible = False
         self.failures_list.controls.clear()
         self.log_list.controls.clear()
-        self.stats = {"dirs": "0", "total": "0", "done": "0", "pending": "0"}
-        self._update_all_stats()
+        self.progress_bar.value = 0
+        self.progress_status.value = "准备转换..."
         self.page.update()
-        
+
         threading.Thread(target=self._convert_thread, daemon=True).start()
-    
-    def _update_all_stats(self):
-        self.stat_dirs.value = f"📂 目录数: {self.stats['dirs']}"
-        self.stat_total.value = f"📄 总文件数: {self.stats['total']}"
-        self.stat_done.value = f"✅ 已转换: {self.stats['done']}"
-        self.stat_pending.value = f"⏳ 待转换: {self.stats['pending']}"
-    
-    def _convert_thread(self):
+
+    def _convert_thread(self) -> None:
+        """转换线程"""
         try:
-            files, dir_count = self._find_files(Path(self.source_dir))
+            self._add_log("开始初始化转换器...", "#3b82f6")
+            self._update_progress(0, "初始化转换器...")
+
+            if not self.all_files:
+                self._add_log("扫描文件...", "#3b82f6")
+                self._update_progress(0, "扫描文件...")
+                files, dir_count = self._find_files(Path(self.source_dir))
+                self.all_files = files
+            else:
+                files = self.all_files
+                dir_count = int(self.stats["dirs"])
+
             total = len(files)
-            
+
             self.stats["dirs"] = str(dir_count)
             self.stats["total"] = str(total)
             self.stats["pending"] = str(total)
-            self._update_all_stats_safe()
-            
+            self._update_all_stats()
+
             if total == 0:
-                self._add_log_safe("未找到可转换的文件", "orange")
+                self._add_log("未找到可转换的文件", "#f59e0b")
                 self._conversion_complete(0, 0, 0)
                 return
-            
+
+            self._add_log(f"共 {total} 个文件待处理", "#3b82f6")
+            self._update_progress(0, f"准备处理 {total} 个文件...")
+
             success_count = 0
             fail_count = 0
             skip_count = 0
-            
+
+            self._add_log("创建转换器实例...", "#3b82f6")
+            self._update_progress(0, "创建转换器...")
+
+            md = self._create_markitdown()
+            self._add_log("转换器初始化完成", "#22c55e")
+            self._update_progress(0, "开始转换...")
+
             for i, src_file in enumerate(files, 1):
                 rel_path = src_file.relative_to(self.source_dir)
-                
+
                 if src_file.suffix.lower() == ".md":
                     out_path = Path(self.target_dir) / rel_path
                     out_path.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(src_file, out_path)
                     skip_count += 1
-                    self._add_log_safe(f"⏭️ {rel_path}", "orange")
+                    self.stats["done"] = str(success_count + skip_count)
+                    self.stats["pending"] = str(total - i)
+                    self._update_all_stats()
+                    self._add_log(f"⏭️ 跳过: {rel_path.name}", "#f59e0b")
                 else:
                     try:
-                        self._convert_file(src_file, Path(self.target_dir) / rel_path.with_suffix(".md"))
+                        self._add_log(f"🔄 转换: {rel_path.name}", "#3b82f6")
+                        self._update_progress(i / total, f"转换: {rel_path.name}...")
+
+                        self._convert_file(src_file, Path(self.target_dir) / rel_path.with_suffix(".md"), md)
                         success_count += 1
-                        self._add_log_safe(f"✅ {rel_path}", "green")
+                        self.stats["done"] = str(success_count + skip_count)
+                        self.stats["pending"] = str(total - i)
+                        self._update_all_stats()
+                        self._update_progress(i / total, f"转换完成: {rel_path.name}")
+                        self._add_log(f"✅ 成功: {rel_path.name}", "#22c55e")
                     except Exception as ex:
                         fail_count += 1
                         self.failures.append((str(rel_path), str(ex)))
                         self._copy_failed(src_file, Path(self.target_dir) / rel_path)
-                        self._add_log_safe(f"❌ {rel_path}", "red")
-                
+                        self.stats["done"] = str(success_count + skip_count)
+                        self.stats["pending"] = str(total - i)
+                        self._update_all_stats()
+                        self._add_log(f"❌ 失败: {rel_path.name} - {str(ex)}", "#ef4444")
+
                 pct = int((i / total) * 100)
-                self.progress_bar.value = i / total
-                self.progress_status.value = f"转换中 {i}/{total} ({pct}%)"
-                self.stats["done"] = str(success_count)
-                self.stats["pending"] = str(total - i)
-                self._update_all_stats_safe()
-            
+                self._update_progress(i / total, f"转换中 {i}/{total} ({pct}%)")
+
             self._conversion_complete(success_count, fail_count, skip_count)
-            
+
         except Exception as ex:
-            self._add_log_safe(f"❌ 转换失败: {ex}", "red")
+            self._add_log(f"❌ 转换失败: {ex}", "#ef4444")
+            import traceback
+            traceback.print_exc()
             self.is_converting = False
-            self._reset_btn_safe()
-    
-    def _conversion_complete(self, success: int, fail: int, skip: int):
-        self._add_log_safe(f"🏁 转换完成！成功: {success} | 失败: {fail} | 跳过: {skip}", "purple")
-        self.progress_bar.value = 1
-        self.progress_status.value = "转换完成"
-        
+            self._reset_btn()
+
+    def _conversion_complete(self, success: int, fail: int, skip: int) -> None:
+        """转换完成处理"""
+        self._add_log(f"🏁 完成! 成功: {success} 失败: {fail} 跳过: {skip}", "#8b5cf6")
+        self._update_progress(1, "转换完成")
+
         if fail > 0 and self.failures:
-            self.failures_section.visible = True
-            for path, reason in self.failures:
-                self.failures_list.controls.append(ft.Text(f"{path} - {reason}", size=11, color="red"))
-        
-        msg = f"转换完成！\n\n成功转换: {success} 个\n"
-        if fail > 0:
-            msg += f"转换失败: {fail} 个（已复制原文件）\n"
-        if skip > 0:
-            msg += f"跳过（已复制）: {skip} 个\n"
-        if fail + skip > 0:
-            msg += f"\n{fail + skip} 个文档已复制到目标目录。"
-        
-        self._show_complete_safe(msg)
+            def _show_failures() -> None:
+                self.failures_section.visible = True
+                for path, reason in self.failures:
+                    self.failures_list.controls.append(ft.Text(f"{path}", size=12, color="red"))
+                self.page.update()
+            self.page.run_task(_show_failures)
+
+        msg = f"转换完成!\n成功: {success} 失败: {fail} 跳过: {skip}"
+
+        self._show_complete(msg)
         self.is_converting = False
-        self._reset_btn_safe()
-    
-    def _reset_btn_safe(self):
-        def _reset():
+        self._reset_btn()
+
+    def _reset_btn(self) -> None:
+        """重置转换按钮"""
+        def _update() -> None:
             self.convert_btn.text = "🚀 开始转换"
             self.convert_btn.disabled = False
-        self._call_safe(_reset)
-    
-    def _update_all_stats_safe(self):
-        self._call_safe(self._update_all_stats)
-    
-    def _add_log_safe(self, text: str, color: str):
-        def _add():
-            self.log_list.controls.append(ft.Text(text, size=12, color=color))
             self.page.update()
-        self._call_safe(_add)
-    
-    def _call_safe(self, func):
-        def _call():
-            func()
-            self.page.update()
-        self.page.run_task(_call)
-    
-    def _show_error(self, msg: str):
-        self.page.show_dialog(ft.AlertDialog(
-            modal=True,
-            title=ft.Text("提示"),
-            content=ft.Text(msg),
-            actions=[ft.TextButton("确定", on_click=lambda _: self.page.close_dialog())],
-        ))
-    
-    def _show_complete_safe(self, msg: str):
-        def _show():
-            self.page.show_dialog(ft.AlertDialog(
-                modal=True,
-                title=ft.Text("转换完成"),
-                content=ft.Text(msg),
-                actions=[ft.TextButton("确定", on_click=lambda _: self.page.close_dialog())],
-            ))
-            self.page.update()
-        self._call_safe(_show)
-    
+        self.page.run_task(_update)
+
     def _find_files(self, source_dir: Path) -> Tuple[List[Path], int]:
+        """查找所有支持的文件"""
         files = []
         dir_count = 0
         for root, dirs, filenames in os.walk(source_dir):
             dir_count += 1
             for filename in filenames:
                 ext = os.path.splitext(filename)[1].lower()
-                if ext in SUPPORTED_EXTENSIONS:
+                if ext in Config.SUPPORTED_EXTENSIONS:
                     files.append(Path(root) / filename)
         return sorted(files), dir_count
-    
-    def _convert_file(self, src_file: Path, out_path: Path):
+
+    def _convert_file(self, src_file: Path, out_path: Path, md) -> None:
+        """转换单个文件"""
         out_path.parent.mkdir(parents=True, exist_ok=True)
         images_dir = out_path.parent / "images"
         images_dir.mkdir(parents=True, exist_ok=True)
-        
+
         extracted_images = {}
         if src_file.suffix.lower() == ".docx":
             extracted_images = self._extract_docx_images(src_file, images_dir)
-        
-        md = self._create_markitdown()
+
         result = md.convert(str(src_file), keep_data_uris=True)
         markdown_text = result.text_content
-        
+
         if extracted_images:
             markdown_text = self._process_markdown_images(markdown_text, extracted_images)
-        
+
         with open(out_path, "w", encoding="utf-8") as f:
             f.write(markdown_text)
-    
+
     def _extract_docx_images(self, docx_path: Path, images_dir: Path) -> Dict[str, str]:
+        """从DOCX文件中提取图片"""
         extracted = {}
         if not zipfile.is_zipfile(docx_path):
             return extracted
-        
+
         try:
             with zipfile.ZipFile(docx_path, "r") as zf:
                 for media_path in zf.namelist():
@@ -314,58 +474,63 @@ class MDConverterApp:
                         data = zf.read(media_path)
                         if len(data) == 0:
                             continue
-                        
+
                         content_hash = hashlib.md5(data).hexdigest()[:8]
                         ext = os.path.splitext(media_path)[1].lower() or ".png"
                         safe_name = f"img_{content_hash}{ext}"
-                        
+
                         with open(images_dir / safe_name, "wb") as img_f:
                             img_f.write(data)
-                        
+
                         extracted[os.path.basename(media_path)] = safe_name
-                    except:
+                    except (IOError, OSError, zipfile.BadZipFile):
                         continue
-        except:
+        except (zipfile.BadZipFile, IOError, OSError):
             pass
-        
+
         return extracted
-    
+
     def _process_markdown_images(self, text: str, images: Dict[str, str]) -> str:
+        """处理Markdown中的图片引用"""
         img_pattern = re.compile(r"(!\[[^\]]*\]\()([^)]+)(\))")
-        
+
         def replace(match):
             prefix = match.group(1)
             src = match.group(2)
             suffix = match.group(3)
-            
+
             if not src.startswith("data:"):
                 return match.group(0)
-            
+
             for orig_name, safe_name in sorted(images.items(), key=lambda x: -len(x[0])):
                 return f"{prefix}images/{safe_name}{suffix}"
-            
+
             return match.group(0)
-        
+
         return img_pattern.sub(replace, text)
-    
+
     def _create_markitdown(self):
+        """创建MarkItDown转换器实例"""
         from markitdown import MarkItDown
         from openai import OpenAI
-        
-        client = OpenAI(api_key=API_KEY, base_url=BASE_URL)
-        return MarkItDown(llm_client=client, llm_model=MODEL, llm_temperature=0.0)
-    
-    def _copy_failed(self, src: Path, dst: Path):
+
+        client = OpenAI(api_key=Config.API_KEY, base_url=Config.BASE_URL)
+        return MarkItDown(llm_client=client, llm_model=Config.MODEL, llm_temperature=0.0)
+
+    def _copy_failed(self, src: Path, dst: Path) -> None:
+        """复制失败的文件"""
         dst.parent.mkdir(parents=True, exist_ok=True)
         try:
             shutil.copy2(src, dst)
-        except:
+        except (IOError, OSError):
             pass
 
 
-def main(page: ft.Page):
+def main(page: ft.Page) -> None:
+    """应用入口"""
     page.theme = ft.Theme(color_scheme_seed="#667eea", font_family="Microsoft YaHei")
     MDConverterApp(page)
 
 
-ft.run(main, assets_dir="img")
+if __name__ == "__main__":
+    ft.run(main, assets_dir=str(Config.get_img_dir()))

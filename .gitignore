@@ -24,5 +24,8 @@ build/
 Thumbs.db
 Desktop.ini
 
+# Environment variables (contains sensitive data)
+.env
+
 # Test files (放在 test 目录下，不需要提交)
 test/
