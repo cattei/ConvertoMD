@@ -4,6 +4,12 @@ MD转换神器 - 修复版本
 """
 
 import flet as ft
+# 确保 flet_desktop 被正确导入
+try:
+    import flet_desktop
+    import flet_desktop.version
+except ImportError:
+    pass
 import threading
 import os
 import re
@@ -56,7 +62,7 @@ class MDConverterApp:
 
     def __init__(self, page: ft.Page) -> None:
         self.page = page
-        self.page.title = "MD转换神器"
+        self.page.title = "MD转换神器·乌修"
         self.page.window_width = Config.WINDOW_WIDTH
         self.page.window_height = Config.WINDOW_HEIGHT
         self.page.theme_mode = ft.ThemeMode.LIGHT
@@ -78,7 +84,7 @@ class MDConverterApp:
     def _build_ui(self) -> None:
         """构建用户界面"""
         self.page.add(
-            ft.Text("MD转换神器", size=28, weight=ft.FontWeight.BOLD, color="#667eea")
+            ft.Text("选择源目录，目标目录会自动生成，文件多的话会有点久，耐心等待", size=28, weight=ft.FontWeight.BOLD, color="#667eea")
         )
 
         # 源目录输入框和按钮
@@ -100,6 +106,12 @@ class MDConverterApp:
             ft.Button("📁 目标目录", on_click=self._select_target, width=120, height=45)
         ])
         self.page.add(target_row)
+
+        # 开始转换按钮（放到目标目录下面）
+        self.convert_btn = ft.Button(
+            "🚀 开始转换", on_click=self._start_convert, width=380, height=50
+        )
+        self.page.add(self.convert_btn)
 
         # 统计信息
         self.stat_dirs = ft.Text("📂 目录: 0", size=16, weight=ft.FontWeight.BOLD)
@@ -157,11 +169,6 @@ class MDConverterApp:
         self.failures_section.visible = False
         self.page.add(self.failures_section)
 
-        self.convert_btn = ft.Button(
-            "🚀 开始转换", on_click=self._start_convert, width=760, height=50
-        )
-        self.page.add(self.convert_btn)
-
         self.page.add(
             ft.Container(
                 content=ft.Text(
@@ -177,30 +184,24 @@ class MDConverterApp:
 
     def _add_log(self, text: str, color: str = "black") -> None:
         """添加日志（线程安全）"""
-        def _update() -> None:
-            self.log_list.controls.insert(0, ft.Text(text, size=13, color=color))
-            if len(self.log_list.controls) > Config.MAX_LOGS:
-                self.log_list.controls.pop()
-            self.page.update()
-        self.page.run_task(_update)
+        self.log_list.controls.insert(0, ft.Text(text, size=13, color=color))
+        if len(self.log_list.controls) > Config.MAX_LOGS:
+            self.log_list.controls.pop()
+        self.page.update()
 
     def _update_all_stats(self) -> None:
         """更新所有统计信息（线程安全）"""
-        def _update() -> None:
-            self.stat_dirs.value = f"📂 目录: {self.stats['dirs']}"
-            self.stat_total.value = f"📄 文件: {self.stats['total']}"
-            self.stat_done.value = f"✅ 已转换: {self.stats['done']}"
-            self.stat_pending.value = f"⏳ 待转换: {self.stats['pending']}"
-            self.page.update()
-        self.page.run_task(_update)
+        self.stat_dirs.value = f"📂 目录: {self.stats['dirs']}"
+        self.stat_total.value = f"📄 文件: {self.stats['total']}"
+        self.stat_done.value = f"✅ 已转换: {self.stats['done']}"
+        self.stat_pending.value = f"⏳ 待转换: {self.stats['pending']}"
+        self.page.update()
 
     def _update_progress(self, value: float, status_text: str) -> None:
         """更新进度条和状态（线程安全）"""
-        def _update() -> None:
-            self.progress_bar.value = value
-            self.progress_status.value = status_text
-            self.page.update()
-        self.page.run_task(_update)
+        self.progress_bar.value = value
+        self.progress_status.value = status_text
+        self.page.update()
 
     def _select_source(self, e) -> None:
         """选择源目录"""
@@ -407,12 +408,10 @@ class MDConverterApp:
         self._update_progress(1, "转换完成")
 
         if fail > 0 and self.failures:
-            def _show_failures() -> None:
-                self.failures_section.visible = True
-                for path, reason in self.failures:
-                    self.failures_list.controls.append(ft.Text(f"{path}", size=12, color="red"))
-                self.page.update()
-            self.page.run_task(_show_failures)
+            self.failures_section.visible = True
+            for path, reason in self.failures:
+                self.failures_list.controls.append(ft.Text(f"{path}", size=12, color="red"))
+            self.page.update()
 
         msg = f"转换完成!\n成功: {success} 失败: {fail} 跳过: {skip}"
 
@@ -422,11 +421,9 @@ class MDConverterApp:
 
     def _reset_btn(self) -> None:
         """重置转换按钮"""
-        def _update() -> None:
-            self.convert_btn.text = "🚀 开始转换"
-            self.convert_btn.disabled = False
-            self.page.update()
-        self.page.run_task(_update)
+        self.convert_btn.text = "🚀 开始转换"
+        self.convert_btn.disabled = False
+        self.page.update()
 
     def _find_files(self, source_dir: Path) -> Tuple[List[Path], int]:
         """查找所有支持的文件"""
@@ -533,4 +530,8 @@ def main(page: ft.Page) -> None:
 
 
 if __name__ == "__main__":
+    # 避免 flet 的自动安装检查
+    import os
+    os.environ['FLET_DISABLE_UPDATE_CHECK'] = '1'
+    os.environ['FLET_NO_ANALYTICS'] = '1'
     ft.run(main, assets_dir=str(Config.get_img_dir()))

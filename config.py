@@ -40,8 +40,8 @@ class Config:
     }
     
     # UI 常量
-    WINDOW_WIDTH: int = 800
-    WINDOW_HEIGHT: int = 720
+    WINDOW_WIDTH: int = 400
+    WINDOW_HEIGHT: int = 800
     PATH_DISPLAY_LIMIT: int = 60
     MAX_LOGS: int = 100
     PROGRESS_BAR_HEIGHT: int = 12
