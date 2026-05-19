@@ -194,7 +194,7 @@ SILICONFLOW_BASE_URL=https://api.siliconflow.cn/v1
 
 ## 📝 许可证
 
-本项目您想怎么用怎么用。
+MIT License
 
 ## 🤝 联系方式
 
