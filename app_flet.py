@@ -12,6 +12,7 @@ except ImportError:
     pass
 import threading
 import asyncio
+import sys
 import os
 import re
 import hashlib
@@ -178,8 +179,8 @@ class MDConverterApp:
         self.failures_section.visible = False
         content.controls.append(self.failures_section)
 
-        wechat_qr = ft.Image(src="img/wechat.jpg", width=180, height=180, fit=ft.BoxFit.CONTAIN)
-        self._qr_visible = False
+        wechat_src = self._get_asset_path("img/wechat.jpg")
+        wechat_qr = ft.Image(src=wechat_src, width=280, height=280, fit=ft.BoxFit.CONTAIN)
         self._qr_popup = ft.Container(
             content=wechat_qr,
             visible=False,
@@ -187,27 +188,35 @@ class MDConverterApp:
             border_radius=10,
             padding=10,
             border=ft.Border.all(1, "#ddd"),
+            margin=ft.Margin(bottom=5),
         )
         def _on_hover(e):
-            self._qr_popup.visible = str(e.data).lower() == "true"
+            enter = str(e.data).lower() in ("true", "1")
+            self._qr_popup.visible = enter
             self._request_update()
         def _on_click(e):
             import webbrowser
             webbrowser.open("https://github.com/cattei/ConvertoMD")
-        tip_text = ft.Text(
-            "请我喝一杯吧",
-            size=13,
-            color="#667eea",
-            weight=ft.FontWeight.BOLD,
+        tip_column = ft.Column(
+            [
+                self._qr_popup,
+                ft.Text(
+                    "请我喝一杯吧",
+                    size=13,
+                    color="#667eea",
+                    weight=ft.FontWeight.BOLD,
+                ),
+            ],
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=0,
         )
         tip_container = ft.Container(
-            content=tip_text,
+            content=tip_column,
             padding=ft.Padding(8, 4, 8, 4),
             on_hover=_on_hover,
             on_click=_on_click,
         )
         content.controls.append(tip_container)
-        content.controls.append(self._qr_popup)
 
         self.page.add(content)
         self._add_log("欢迎使用MD转换神器", "gray")
@@ -216,6 +225,14 @@ class MDConverterApp:
 
     def _request_update(self) -> None:
         self._need_update = True
+
+    def _get_asset_path(self, relative_path: str) -> str:
+        """获取资源文件路径，兼容打包和开发环境"""
+        if getattr(sys, 'frozen', False):
+            base_path = sys._MEIPASS
+        else:
+            base_path = str(Path(__file__).parent)
+        return str(Path(base_path) / relative_path)
 
     def _start_ui_refresh(self) -> None:
         async def _periodic_refresh():
