@@ -64,7 +64,7 @@ class MDConverterApp:
 
     def __init__(self, page: ft.Page) -> None:
         self.page = page
-        self.page.title = "MD转换神器"
+        self.page.title = "MD转换神器·孙永乐"
         self.page.window.width = Config.WINDOW_WIDTH
         self.page.window.height = Config.WINDOW_HEIGHT
         self.page.window.resizable = False
@@ -477,6 +477,8 @@ class MDConverterApp:
         if extracted_images:
             markdown_text = self._process_markdown_images(markdown_text, extracted_images)
 
+        markdown_text = self._embed_ocr_as_comments(markdown_text)
+
         with open(out_path, "w", encoding="utf-8") as f:
             f.write(markdown_text)
 
@@ -527,6 +529,21 @@ class MDConverterApp:
                 return f"{prefix}images/{safe_name}{suffix}"
 
             return match.group(0)
+
+        return img_pattern.sub(replace, text)
+
+    def _embed_ocr_as_comments(self, text: str) -> str:
+        """将图片alt文字转为HTML注释，预览时隐藏，AI可读取"""
+        img_pattern = re.compile(r"(!\[([^\]]*)\]\()([^)]+)(\))")
+
+        def replace(match):
+            full_match = match.group(0)
+            alt_text = match.group(2).strip()
+            if alt_text:
+                cleaned = re.sub(r'\s+', ' ', alt_text).strip()
+                if len(cleaned) > 2:
+                    return f"{full_match}\n<!-- OCR: {cleaned} -->"
+            return full_match
 
         return img_pattern.sub(replace, text)
 
