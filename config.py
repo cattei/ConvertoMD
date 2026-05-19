@@ -40,11 +40,27 @@ class Config:
     }
     
     # UI 常量
-    WINDOW_WIDTH: int = 400
-    WINDOW_HEIGHT: int = 800
+    WINDOW_WIDTH: int = 600
+    WINDOW_HEIGHT: int = 850
     PATH_DISPLAY_LIMIT: int = 60
     MAX_LOGS: int = 100
     PROGRESS_BAR_HEIGHT: int = 12
+    
+    # 控件尺寸
+    TITLE_FONT_SIZE: int = 10
+    TEXT_FIELD_WIDTH: int = 400
+    TEXT_FIELD_HEIGHT: int = 45
+    BUTTON_SOURCE_WIDTH: int = 140
+    BUTTON_TARGET_WIDTH: int = 140
+    BUTTON_HEIGHT: int = 40
+    CONVERT_BTN_WIDTH: int = 560
+    CONVERT_BTN_HEIGHT: int = 45
+    STAT_ITEM_WIDTH: int = 130
+    STAT_FONT_SIZE: int = 14
+    PROGRESS_BAR_WIDTH: int = 560
+    LOG_LIST_HEIGHT: int = 320
+    FAILURES_LIST_HEIGHT: int = 80
+    STAT_CONTAINER_WIDTH: int = 560
     
     # ICO 图标尺寸
     ICON_SIZES: list = [16, 32, 48, 64, 128, 256]

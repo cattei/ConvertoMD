@@ -11,11 +11,13 @@ try:
 except ImportError:
     pass
 import threading
+import asyncio
 import os
 import re
 import hashlib
 import zipfile
 import shutil
+import time
 import tkinter as tk
 from tkinter import filedialog
 from pathlib import Path
@@ -62,9 +64,11 @@ class MDConverterApp:
 
     def __init__(self, page: ft.Page) -> None:
         self.page = page
-        self.page.title = "MD转换神器·乌修"
-        self.page.window_width = Config.WINDOW_WIDTH
-        self.page.window_height = Config.WINDOW_HEIGHT
+        self.page.title = "MD转换神器"
+        self.page.window.width = Config.WINDOW_WIDTH
+        self.page.window.height = Config.WINDOW_HEIGHT
+        self.page.window.resizable = False
+        self.page.update()
         self.page.theme_mode = ft.ThemeMode.LIGHT
 
         self.source_dir: str = ""
@@ -78,98 +82,103 @@ class MDConverterApp:
             "pending": "0"
         }
         self.all_files: List[Path] = []
+        self._need_update: bool = False
+        self._refresh_running: bool = True
 
         self._build_ui()
+        self._start_ui_refresh()
 
     def _build_ui(self) -> None:
         """构建用户界面"""
-        self.page.add(
-            ft.Text("选择源目录，目标目录会自动生成，文件多的话会有点久，耐心等待", size=28, weight=ft.FontWeight.BOLD, color="#667eea")
+        self.page.controls.clear()
+        self.page.padding = 0
+        self.page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
+
+        content = ft.Column(
+            width=Config.CONVERT_BTN_WIDTH,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=5,
+            scroll=ft.ScrollMode.AUTO
         )
 
-        # 源目录输入框和按钮
+        content.controls.append(
+            ft.Text("选择源目录，目标目录会自动生成，文件多的话会有点久，耐心等待 | DeepSeek-OCR已内置 | 图片OCR已启用", 
+                    size=Config.TITLE_FONT_SIZE, weight=ft.FontWeight.BOLD, color="#667eea")
+        )
+
+        field_width = Config.CONVERT_BTN_WIDTH - Config.BUTTON_SOURCE_WIDTH - 10
         self.source_input = ft.TextField(
-            hint_text="选择源目录...", expand=True, read_only=True, height=45
-        )
+            hint_text="选择源目录...", width=field_width, read_only=True, height=Config.TEXT_FIELD_HEIGHT, text_vertical_align=ft.VerticalAlignment.CENTER        )
         source_row = ft.Row([
-            ft.Container(content=self.source_input, expand=True),
-            ft.Button("📂 源目录", on_click=self._select_source, width=120, height=45)
-        ])
-        self.page.add(source_row)
+            self.source_input,
+            ft.Button("📂 源目录", on_click=self._select_source, width=Config.BUTTON_SOURCE_WIDTH, height=Config.BUTTON_HEIGHT)
+        ], width=Config.CONVERT_BTN_WIDTH)
+        content.controls.append(source_row)
 
-        # 目标目录输入框和按钮
         self.target_input = ft.TextField(
-            hint_text="选择目标目录...", expand=True, read_only=True, height=45
-        )
+            hint_text="选择目标目录...", width=field_width, read_only=True, height=Config.TEXT_FIELD_HEIGHT, text_vertical_align=ft.VerticalAlignment.CENTER        )
         target_row = ft.Row([
-            ft.Container(content=self.target_input, expand=True),
-            ft.Button("📁 目标目录", on_click=self._select_target, width=120, height=45)
-        ])
-        self.page.add(target_row)
+            self.target_input,
+            ft.Button("📁 目标目录", on_click=self._select_target, width=Config.BUTTON_TARGET_WIDTH, height=Config.BUTTON_HEIGHT)
+        ], width=Config.CONVERT_BTN_WIDTH)
+        content.controls.append(target_row)
 
-        # 开始转换按钮（放到目标目录下面）
         self.convert_btn = ft.Button(
-            "🚀 开始转换", on_click=self._start_convert, width=380, height=50
+            "🚀 开始转换", on_click=self._start_convert, width=Config.CONVERT_BTN_WIDTH, height=Config.CONVERT_BTN_HEIGHT
         )
-        self.page.add(self.convert_btn)
+        content.controls.append(self.convert_btn)
 
-        # 统计信息
-        self.stat_dirs = ft.Text("📂 目录: 0", size=16, weight=ft.FontWeight.BOLD)
-        self.stat_total = ft.Text("📄 文件: 0", size=16, weight=ft.FontWeight.BOLD)
-        self.stat_done = ft.Text(
-            "✅ 已转换: 0", size=16, weight=ft.FontWeight.BOLD, color="#22c55e"
-        )
-        self.stat_pending = ft.Text(
-            "⏳ 待转换: 0", size=16, weight=ft.FontWeight.BOLD, color="#f59e0b"
-        )
+        self.stat_dirs = ft.Text("📂 目录: 0", size=Config.STAT_FONT_SIZE, weight=ft.FontWeight.BOLD)
+        self.stat_total = ft.Text("📄 文件: 0", size=Config.STAT_FONT_SIZE, weight=ft.FontWeight.BOLD)
+        self.stat_done = ft.Text("✅ 已转换: 0", size=Config.STAT_FONT_SIZE, weight=ft.FontWeight.BOLD, color="#22c55e")
+        self.stat_pending = ft.Text("⏳ 待转换: 0", size=Config.STAT_FONT_SIZE, weight=ft.FontWeight.BOLD, color="#f59e0b")
 
-        self.page.add(ft.Container(
+        content.controls.append(ft.Container(
             content=ft.Row(
-                [self.stat_dirs, self.stat_total, self.stat_done, self.stat_pending],
-                alignment=ft.MainAxisAlignment.SPACE_AROUND
+                [
+                    ft.Container(self.stat_dirs, width=Config.STAT_ITEM_WIDTH),
+                    ft.Container(self.stat_total, width=Config.STAT_ITEM_WIDTH),
+                    ft.Container(self.stat_done, width=Config.STAT_ITEM_WIDTH),
+                    ft.Container(self.stat_pending, width=Config.STAT_ITEM_WIDTH),
+                ],
+                alignment=ft.MainAxisAlignment.CENTER, spacing=10
             ),
             bgcolor="#f3f4f6",
             padding=12,
             border_radius=10,
-            margin=ft.Margin(0, 10, 0, 10)
+            margin=ft.Margin(0, 10, 0, 10),
+            width=Config.STAT_CONTAINER_WIDTH
         ))
 
-        self.page.add(
-            ft.Container(
-                content=ft.Text(
-                    "DeepSeek-OCR已内置 | 图片OCR已启用", size=12, color="#666"
-                ),
-                padding=5
-            )
-        )
+
 
         self.progress_status = ft.Text("就绪", size=14, color="#333")
         self.progress_bar = ft.ProgressBar(
-            width=760, value=0, height=Config.PROGRESS_BAR_HEIGHT
+            width=Config.CONVERT_BTN_WIDTH, value=0, height=Config.PROGRESS_BAR_HEIGHT
         )
-        self.page.add(self.progress_status)
-        self.page.add(self.progress_bar)
+        content.controls.append(self.progress_status)
+        content.controls.append(self.progress_bar)
 
-        self.log_list = ft.ListView(height=320, spacing=3, reverse=True)
-        self.page.add(
+        self.log_list = ft.ListView(height=Config.LOG_LIST_HEIGHT, spacing=3, reverse=True)
+        content.controls.append(
             ft.Container(
                 content=self.log_list,
                 padding=8,
                 border_radius=8,
-                border=ft.Border(left=ft.BorderSide(3, "#667eea"))
+                border=ft.Border(left=ft.BorderSide(3, "#667eea")),
+                width=Config.CONVERT_BTN_WIDTH
             )
         )
-        self._add_log("欢迎使用MD转换神器", "gray")
 
-        self.failures_list = ft.ListView(height=80, spacing=2)
+        self.failures_list = ft.ListView(height=Config.FAILURES_LIST_HEIGHT, spacing=2)
         self.failures_section = ft.Column(
             [ft.Text("❌ 转换失败", size=14, weight=ft.FontWeight.BOLD, color="red"),
              self.failures_list]
         )
         self.failures_section.visible = False
-        self.page.add(self.failures_section)
+        content.controls.append(self.failures_section)
 
-        self.page.add(
+        content.controls.append(
             ft.Container(
                 content=ft.Text(
                     "MD转换神器 · 图片自动提取 + DeepSeek-OCR",
@@ -180,14 +189,29 @@ class MDConverterApp:
             )
         )
 
+        self.page.add(content)
+        self._add_log("欢迎使用MD转换神器", "gray")
+
         self.current_dialog: Optional[ft.AlertDialog] = None
+
+    def _request_update(self) -> None:
+        self._need_update = True
+
+    def _start_ui_refresh(self) -> None:
+        async def _periodic_refresh():
+            while self._refresh_running:
+                await asyncio.sleep(0.5)
+                if self._need_update:
+                    self._need_update = False
+                    self.page.update()
+        self.page.run_task(_periodic_refresh)
 
     def _add_log(self, text: str, color: str = "black") -> None:
         """添加日志（线程安全）"""
         self.log_list.controls.insert(0, ft.Text(text, size=13, color=color))
         if len(self.log_list.controls) > Config.MAX_LOGS:
             self.log_list.controls.pop()
-        self.page.update()
+        self._request_update()
 
     def _update_all_stats(self) -> None:
         """更新所有统计信息（线程安全）"""
@@ -195,13 +219,13 @@ class MDConverterApp:
         self.stat_total.value = f"📄 文件: {self.stats['total']}"
         self.stat_done.value = f"✅ 已转换: {self.stats['done']}"
         self.stat_pending.value = f"⏳ 待转换: {self.stats['pending']}"
-        self.page.update()
+        self._request_update()
 
     def _update_progress(self, value: float, status_text: str) -> None:
         """更新进度条和状态（线程安全）"""
         self.progress_bar.value = value
         self.progress_status.value = status_text
-        self.page.update()
+        self._request_update()
 
     def _select_source(self, e) -> None:
         """选择源目录"""
@@ -312,9 +336,9 @@ class MDConverterApp:
         self.log_list.controls.clear()
         self.progress_bar.value = 0
         self.progress_status.value = "准备转换..."
-        self.page.update()
+        self._request_update()
 
-        threading.Thread(target=self._convert_thread, daemon=True).start()
+        self.page.run_thread(self._convert_thread)
 
     def _convert_thread(self) -> None:
         """转换线程"""
@@ -411,7 +435,7 @@ class MDConverterApp:
             self.failures_section.visible = True
             for path, reason in self.failures:
                 self.failures_list.controls.append(ft.Text(f"{path}", size=12, color="red"))
-            self.page.update()
+            self._request_update()
 
         msg = f"转换完成!\n成功: {success} 失败: {fail} 跳过: {skip}"
 
@@ -423,7 +447,7 @@ class MDConverterApp:
         """重置转换按钮"""
         self.convert_btn.text = "🚀 开始转换"
         self.convert_btn.disabled = False
-        self.page.update()
+        self._request_update()
 
     def _find_files(self, source_dir: Path) -> Tuple[List[Path], int]:
         """查找所有支持的文件"""
